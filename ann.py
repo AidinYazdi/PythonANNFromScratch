@@ -1,158 +1,175 @@
-# an ANN that will approximate an OR gate
 # import required libraries
 import numpy as np
 
-# define import vectors (called input_features)
-input_features = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-# the shape is printed out in the form (r, c)
-# where r is the rows in the matrix and c is the column
-print(input_features.shape)
+# define input features (the inputs to the ANN, which
+# is an OR gate in the case)
+input_features = np.array([[0,0],[0,1],[1,0],[1,1]])
+# print the shape of the input_features array for the user to see
+# should display: (4, 2)
+print (input_features.shape)
 input_features
 
-# define the desired output vectors (target_output)
-target_output = np.array([[0, 1, 1, 1]])
-# reshape the target_output into vectors
-target_output = target_output.reshape(4, 1)
+# define the desired outputs (target outputs)
+target_output = np.array([[0,1,1,1]])
+# reshape the target output array into a vector that
+# will work with the inputs and the ANN
+target_output = target_output.reshape(4,1)
+# print the shape of the target_output array for the user to see
+# should display: (4, 1)
+# (4, 1) is a matrix which is compatible
+# with our input matrix which is (4, 2)
 print(target_output.shape)
 target_output
 
-# define the weights vector
-weights = np.array([[0.1], [0.2]])
-print(weights.shape)
-weights
-
-# the bias weight
-bias = 0.3
+# define the weights
+# 6 for the hidden layer
+# 3 for the output layer
+# 9 in total
+# the structure of the ANN is:
+# 2 input nodes, 3 hidden nodes, one output node
+# (and an input layer bias and hidden layer bias - but the biases
+# don't need their weights defined here)
+weight_hidden = np.array([[-3.82270773, 2.36324803, 3.13867107],[-3.79490945, 2.45183148, 3.18541383]])
+weight_output = np.array([[-13.22689481],[1.74391783],[3.50426502]])
 
 # the learning rate
 lr = 0.05
-
 
 # the sigmoid function
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-
 # the derivative of the sigmoid function
 def sigmoid_der(x):
     return sigmoid(x) * (1 - sigmoid(x))
 
+train = False
 
 # backpropagation
-# change the number in the for loop to change the number of epochs
-for epoch in range(10000):
-    # defining our input vectors for this epoch as the input vectors
-    # defined above
-    inputs = input_features
+if train:
+    for epoch in range(200000):
+        # multiply the input for the ANN matrix with the weights between the
+        # input and hidden layers matrix to get the input for the hidden layer
+        input_hidden = np.dot(input_features, weight_hidden)
 
-    # forwardpropagation
-    # (so that we can get output values to use to find
-    # error for backpropogation)
+        # get the output of the hidden layer
+        # (which is just the sigmoid of the input to the hidden layer)
+        output_hidden = sigmoid(input_hidden)
 
-    # feedforward input
-    # setting the input into the output neuron as the dot product of
-    # the inputs vector and weights vector plus the bias
-    # So: in_o = (i1 * w1) + (i2 * w2) + b
-    in_o = np.dot(inputs, weights) + bias
+        # multiply the output of the hidden layer (which is the input for the
+        # output layer) with the weights between the hidden and output layers
+        # to get the input for the output layer
+        input_op = np.dot(output_hidden, weight_output)
 
-    # feedforward output
-    # this is the output of the output neuron (output = sigmoid(input))
-    # remember: this ANN only has input and output layers,
-    # no hidden layers, so this is the final output of the ANN
-    out_o = sigmoid(in_o)
+        # get the output of the output layer - the output of the whole ANN
+        # (which is just the sigmoid of the input to the output layer)
+        output_op = sigmoid(input_op)
 
-    # the actual backpropagation now that we have
-    # the outputs from forwardpropagation
-
-    # we need to always find the error because we will use it for backpropagation
-    error = out_o - target_output
-    if epoch % 1000 == 0:
-        # show the user which epoch the ANN is up to
+        # calculate the mean squeared error and display it to the user along
+        # with which epoch the program is on
+        error_out = ((1 / 2) * (np.power((output_op - target_output), 2)))
+        print("epoch = ")
         print(epoch)
-        # calculating error
-        # the error will be used in gradient descent on a weight by weight basis
-        # we add another variable here with the sum of the errors of all the
-        # weights to display to the user to show the user
-        # how well the ANN is doing
-        x = error.sum()
-        # display the error for the user
-        print(x)
+        print("error = ")
+        print(error_out.sum())
 
-    # gradient descent
+        # derivatives for the output layer
+        derror_douto = output_op - target_output
+        douto_dino = sigmoid_der(input_op)
+        dino_dwo = output_hidden
+        # put all the derivatives together for derror/dwo (which is needed for
+        # gradient descent)
+        # we have to transpose the dino/dwo to make it compatible with the
+        # other matrices
+        derror_dwo = np.dot(dino_dwo.T, derror_douto * douto_dino)
 
-    # calculating the derivative
-    # the error has been defined about as: error = out_o - target_output
-    derror_douto = error
-    douto_dino = sigmoid_der(out_o)
+        # derivatives for the hidden layer
+        # derror/douto and douto/dino have been defined above
+        derror_dino = derror_douto * douto_dino
+        dino_douth = weight_output
+        # combine the two previous derivatives into derror/douth
+        # we have to transpose the dino/douth to make it compatible with the
+        # other matrix
+        derror_douth = np.dot(derror_dino, dino_douth.T)
+        douth_dinh = sigmoid_der(input_hidden)
+        dinh_dwh = input_features
+        # combine all the previous derivatives into derror/dwh
+        # we have to transpose the dinh/dwh to make it compatible with the
+        # other matrix
+        derror_dwh = np.dot(dinh_dwh.T, douth_dinh * derror_douth)
 
-    # multiplying the derivatives
-    # this is part of the gradient descent formula
-    # check notebook for more details on the formula
-    deriv = derror_douto * douto_dino
+        # update the weights
+        weight_output -= lr * derror_dwo
+        weight_hidden -= lr * derror_dwh
 
-    # now, we must multiply the previous derivatives with din_o/dw
-    # (which is also just the output value for the previous node connected
-    # to the given weight, or the input value for the whole network since
-    # this network only has input and output layers)
-    # we have to get the transpose of input_features in order to organize
-    # the matrix so that it can be multiplied with the
-    # other derivative matrices
-    inputs = input_features.T
-    deriv_final = np.dot(inputs, deriv)
-
-    # updating the values of the weights
-    weights -= lr * deriv_final
-
-    # updating the bias weight value
-    # since the bias doesn't get an input
-    # we don't need to factor in din_o/dw
-    # remember, "i" will equal each number in
-    # the deriv matrix throughout the for loop
-    for i in deriv:
-        bias -= lr * i
-
-# check the final values for the weights and bias
-print(weights)
-print(bias)
-
-# predicting the values of the OR gate
+# display the final value of the weights
+print(weight_hidden)
+print(weight_output)
 
 # predicting for (0,0)
 # taking the inputs
-single_point = np.array([0, 0])
+single_point = np.array([0,0])
 # first step
-result1 = np.dot(single_point, weights) + bias
+result1 = np.dot(single_point, weight_hidden)
 # second step
 result2 = sigmoid(result1)
+# third step
+result3 = np.dot(result2, weight_output)
+# fourth step
+result4 = sigmoid(result3)
 # print the final result
-print(result2)
+print("inputs:")
+print(single_point)
+print("outputs:")
+print(result4)
 
 # predicting for (1,0)
 # taking the inputs
-single_point = np.array([1, 0])
+single_point = np.array([1,0])
 # first step
-result1 = np.dot(single_point, weights) + bias
+result1 = np.dot(single_point, weight_hidden)
 # second step
 result2 = sigmoid(result1)
+# third step
+result3 = np.dot(result2, weight_output)
+# fourth step
+result4 = sigmoid(result3)
 # print the final result
-print(result2)
+print("inputs:")
+print(single_point)
+print("outputs:")
+print(result4)
 
 # predicting for (0,1)
 # taking the inputs
-single_point = np.array([0, 1])
+single_point = np.array([0,1])
 # first step
-result1 = np.dot(single_point, weights) + bias
+result1 = np.dot(single_point, weight_hidden)
 # second step
 result2 = sigmoid(result1)
+# third step
+result3 = np.dot(result2, weight_output)
+# fourth step
+result4 = sigmoid(result3)
 # print the final result
-print(result2)
+print("inputs:")
+print(single_point)
+print("outputs:")
+print(result4)
 
 # predicting for (1,1)
 # taking the inputs
-single_point = np.array([1, 1])
+single_point = np.array([1,1])
 # first step
-result1 = np.dot(single_point, weights) + bias
+result1 = np.dot(single_point, weight_hidden)
 # second step
 result2 = sigmoid(result1)
+# third step
+result3 = np.dot(result2, weight_output)
+# fourth step
+result4 = sigmoid(result3)
 # print the final result
-print(result2)
+print("inputs:")
+print(single_point)
+print("outputs:")
+print(result4)

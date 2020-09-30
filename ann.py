@@ -1,6 +1,9 @@
 # import required libraries
 import numpy as np
 
+# whether or not the ANN should train
+train = False
+
 # define input features (the inputs to the ANN, which
 # is an OR gate in the case)
 input_features = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
@@ -22,17 +25,30 @@ target_output = target_output.reshape(4, 1)
 # target_output
 
 # define the weights
-# 6 for the hidden layer
+# 6 for hidden layer1
+# 9 for hidden layer2
 # 3 for the output layer
-# 9 in total
+# 18 in total
 # the structure of the ANN is:
-# 2 input nodes, 3 hidden nodes, one output node
-# (and an input layer bias and hidden layer bias - but the biases
+# 2 input nodes, 3 hidden nodes in layer1, 3 hidden nodes in layer2, one output node
+# (and an input layer bias and hidden layer biases - but the biases
 # don't need their weights defined here)
-weight_hidden1 = np.array([[-8.00442426, 7.59876266, 7.76072063], [-8.00390399, 7.59932299, 7.76118024]])
-weight_hidden2 = np.array([[6.96980126, -2.97668445, -2.84868599], [-4.63805025, 3.77585312, 3.6671216],
-                           [-5.43330553, 3.40792605, 3.78959919]])
-weight_output = np.array([[-29.36733248], [1.70604094], [1.35045945]])
+weight_hidden1 = np.array([[-8.06769022, 7.6152224, 7.77727736],
+                           [-8.06720179, 7.6157736, 7.77772944]])
+weight_hidden2 = np.array([[7.04793479, -2.98480262, -2.8539147],
+                           [-4.64603226, 3.78387943, 3.67228354],
+                           [-5.44308997, 3.41611121, 3.79486349]])
+weight_output = np.array([[-29.3699864],
+                          [2.82170716],
+                          [2.46615035]])
+
+# the biases
+# bias that outputs to the first hidden layer
+bias1 = np.array([0.93191575, 0.46114799, 0.41844685])
+# bias that outputs to the second hidden layer
+bias2 = np.array([0.90535232, 0.90015503, 0.9001007])
+# bias that outputs to the output layer
+bias_op = np.array([0.50142375])
 
 # the learning rate
 lr = 0.025
@@ -54,15 +70,15 @@ def forwardProp(x, y):
     # taking the inputs
     single_point = np.array([x, y])
     # first step
-    result1 = np.dot(single_point, weight_hidden1)
+    result1 = np.dot(single_point, weight_hidden1) + bias1
     # second step
     result2 = sigmoid(result1)
     # third step
-    result3 = np.dot(result2, weight_hidden2)
+    result3 = np.dot(result2, weight_hidden2) + bias2
     # fourth step
     result4 = sigmoid(result3)
     # fifth step
-    result5 = np.dot(result4, weight_output)
+    result5 = np.dot(result4, weight_output) + bias_op
     # sixth step
     result6 = sigmoid(result5)
     # print the final result
@@ -72,15 +88,13 @@ def forwardProp(x, y):
     print(result6)
 
 
-train = True
-
 # backpropagation
 if train:
     for epoch in range(200000):
         # multiply the input for the ANN matrix with the weights between
         # the input and hidden layer1 matrices to get the input for the
         # hidden layer1
-        input_hidden1 = np.dot(input_features, weight_hidden1)
+        input_hidden1 = np.dot(input_features, weight_hidden1) + bias1
 
         # get the output of the hidden layer1
         # (which is just the sigmoid of the input to the hidden layer1)
@@ -89,7 +103,7 @@ if train:
         # multiply the output of the hidden layer1 (which is the input for
         # the hidden layer2) with the weights between the hidden layer1 and
         # hidden layer2 to get the input for the hidden layer2
-        input_hidden2 = np.dot(output_hidden1, weight_hidden2)
+        input_hidden2 = np.dot(output_hidden1, weight_hidden2) + bias2
 
         # get the output of the hidden layer2
         # (which is just the sigmoid of the input to the hidden layer2)
@@ -98,7 +112,7 @@ if train:
         # multiply the output of the hidden layer2 (which is the input for
         # the output layer) with the weights between the hidden layer2 and
         # output layer to get the input for the output layer
-        input_op = np.dot(output_hidden2, weight_output)
+        input_op = np.dot(output_hidden2, weight_output) + bias_op
 
         # get the output of the output layer
         # (which is just the sigmoid of the input to the output layer)
@@ -116,12 +130,15 @@ if train:
         # derivatives for the output layer
         derror_douto = output_op - target_output
         douto_dino = sigmoid_der(input_op)
+        # the derivative that will be used to calculate gradient descent
+        # for the bias and for the output layer
+        deriv_op = derror_douto * douto_dino
         dino_dwo = output_hidden2
         # put all the derivatives together for derror/dwo (which is needed
         # for gradient descent)
         # we have to transpose the dino/dwo to make it compatible with the
         # other matrices
-        derror_dwo = np.dot(dino_dwo.T, derror_douto * douto_dino)
+        derror_dwo = np.dot(dino_dwo.T, deriv_op)
 
         # derivatives for the hidden layer2
         # derror/douto and douto/dino have been defined above
@@ -133,10 +150,13 @@ if train:
         derror_douth2 = np.dot(derror_dino2, dino_douth2.T)
         douth_dinh2 = sigmoid_der(input_hidden2)
         dinh_dwh2 = input_hidden1
+        # separating out calculations to make gradient descent for the
+        # bias easier
+        deriv2 = douth_dinh2 * derror_douth2
         # combine all the previous derivatives into derror/dwh2
         # we have to transpose the dinh/dwh2 to make it compatible with the
         # other matrix
-        derror_dwh2 = np.dot(dinh_dwh2.T, douth_dinh2 * derror_douth2)
+        derror_dwh2 = np.dot(dinh_dwh2.T, deriv2)
 
         # derivatives for the hidden layer1
         # derror/dino2 and douto/douth2 have been defined above
@@ -149,20 +169,40 @@ if train:
         derror_douth1 = np.dot(derror_dino1, dino_douth1.T)
         douth_dinh1 = sigmoid_der(input_hidden1)
         dinh_dwh1 = input_features
+        # separating out calculations to make gradient descent for the
+        # bias easier
+        deriv1 = douth_dinh1 * derror_douth1
         # combine all the previous derivatives into derror/dwh1
         # we have to transpose the dinh/dwh1 to make it compatible with the
         # other matrix
-        derror_dwh1 = np.dot(dinh_dwh1.T, douth_dinh1 * derror_douth1)
+        derror_dwh1 = np.dot(dinh_dwh1.T, deriv1)
 
         # update the weights
         weight_output -= lr * derror_dwo
         weight_hidden2 -= lr * derror_dwh2
         weight_hidden1 -= lr * derror_dwh1
 
+        # update the biases
+        for i in deriv_op:
+            bias_op -= lr * i
+        for j in deriv2:
+            bias2 -= lr * j
+        for k in deriv1:
+            bias1 -= lr * k
+
 # display the final value of the weights
+print("weight_hidden1")
 print(weight_hidden1)
+print("bias1")
+print(bias1)
+print("weight_hidden2")
 print(weight_hidden2)
+print("bias2")
+print(bias2)
+print("weight_output")
 print(weight_output)
+print("bias_op")
+print(bias_op)
 
 forwardProp(0, 0)
 forwardProp(1, 0)

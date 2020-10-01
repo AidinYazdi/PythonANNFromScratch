@@ -1,5 +1,6 @@
 # import required libraries
 import numpy as np
+import function1
 
 # how many nodes in each layer
 nodes_in_input_layer = 2
@@ -22,6 +23,9 @@ display = True
 # whether or not the ANN should test itself
 test = True
 
+# the function we are approximating
+func = "function1"
+
 # how many epochs the program should do
 num_epochs = 200000
 
@@ -32,25 +36,13 @@ progress_rate = 10000
 # the learning rate
 lr = 0.025
 
-# define input features (the inputs to the ANN, which
-# is an OR gate in the case)
-input_features = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-# print the shape of the input_features array for the user to see
-# should display: (4, 2)
-# print (input_features.shape)
-# input_features
+# getting the input features from the .csv file
+input_features = np.loadtxt(func + '_inputs.csv', delimiter=',', ndmin=function1.input_array_dim)
+input_features = input_features.reshape(function1.input_array_r, function1.input_array_c)
 
-# define the desired outputs (target outputs)
-target_output = np.array([[0, 1, 1, 1]])
-# reshape the target output array into a vector that
-# will work with the inputs and the ANN
-target_output = target_output.reshape(4, 1)
-# print the shape of the target_output array for the user to see
-# should display: (4, 1)
-# (4, 1) is a matrix which is compatible
-# with our input matrix which is (4, 2)
-# print(target_output.shape)
-# target_output
+# getting the target outputs from the .csv file
+target_output = np.loadtxt(func + '_desired_outputs.csv', delimiter=',', ndmin=function1.output_array_dim)
+target_output = target_output.reshape(function1.output_array_r, function1.output_array_c)
 
 # setting up the weights and biases
 # reading in the weights and biases

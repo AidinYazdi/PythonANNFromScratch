@@ -1,8 +1,36 @@
 # import required libraries
 import numpy as np
 
+# how many nodes in each layer
+nodes_in_input_layer = 2
+nodes_in_hidden_layer1 = 3
+nodes_in_hidden_layer2 = 3
+nodes_in_output_layer = 1
+
+# whether or not the ANN should read in data
+read_in_data = True
+
 # whether or not the ANN should train
-train = False
+train = True
+
+# whether or not the ANN should save data
+save = True
+
+# whether or not the ANN should display the weights and biases
+display = True
+
+# whether or not the ANN should test itself
+test = True
+
+# how many epochs the program should do
+num_epochs = 200000
+
+# how often the program should tell the user its progress
+# (measured in epochs)
+progress_rate = 10000
+
+# the learning rate
+lr = 0.025
 
 # define input features (the inputs to the ANN, which
 # is an OR gate in the case)
@@ -24,34 +52,37 @@ target_output = target_output.reshape(4, 1)
 # print(target_output.shape)
 # target_output
 
-# define the weights
-# 6 for hidden layer1
-# 9 for hidden layer2
-# 3 for the output layer
-# 18 in total
-# the structure of the ANN is:
-# 2 input nodes, 3 hidden nodes in layer1, 3 hidden nodes in layer2, one output node
-# (and an input layer bias and hidden layer biases - but the biases
-# don't need their weights defined here)
-weight_hidden1 = np.array([[-8.06769022, 7.6152224, 7.77727736],
-                           [-8.06720179, 7.6157736, 7.77772944]])
-weight_hidden2 = np.array([[7.04793479, -2.98480262, -2.8539147],
-                           [-4.64603226, 3.78387943, 3.67228354],
-                           [-5.44308997, 3.41611121, 3.79486349]])
-weight_output = np.array([[-29.3699864],
-                          [2.82170716],
-                          [2.46615035]])
-
-# the biases
-# bias that outputs to the first hidden layer
-bias1 = np.array([0.93191575, 0.46114799, 0.41844685])
-# bias that outputs to the second hidden layer
-bias2 = np.array([0.90535232, 0.90015503, 0.9001007])
-# bias that outputs to the output layer
-bias_op = np.array([0.50142375])
-
-# the learning rate
-lr = 0.025
+# setting up the weights and biases
+# reading in the weights and biases
+if read_in_data:
+    dim = 0
+    if (nodes_in_input_layer * nodes_in_hidden_layer1) > 1:
+        dim = 2
+    else:
+        dim = 1
+    weight_hidden1 = np.loadtxt('weight_hidden1.csv', delimiter=',', ndmin=dim)
+    if (nodes_in_hidden_layer1 * nodes_in_hidden_layer2) > 1:
+        dim = 2
+    else:
+        dim = 1
+    weight_hidden2 = np.loadtxt('weight_hidden2.csv', delimiter=',', ndmin=dim)
+    if (nodes_in_hidden_layer2 * nodes_in_output_layer) > 1:
+        dim = 2
+    else:
+        dim = 1
+    weight_output = np.loadtxt('weight_output.csv', delimiter=',', ndmin=dim)
+    bias1 = np.loadtxt('bias1.csv', delimiter=',', ndmin=1)
+    bias2 = np.loadtxt('bias2.csv', delimiter=',', ndmin=1)
+    bias_op = np.loadtxt('bias_op.csv', delimiter=',', ndmin=1)
+else:
+    # randomly assigning the weights and biases in we are not
+    # supposed to read them in from the .csv files
+    weight_hidden1 = np.random.rand(nodes_in_input_layer, nodes_in_hidden_layer1)
+    weight_hidden2 = np.random.rand(nodes_in_hidden_layer1, nodes_in_hidden_layer2)
+    weight_output = np.random.rand(nodes_in_hidden_layer2, nodes_in_output_layer)
+    bias1 = np.random.rand(nodes_in_hidden_layer1)
+    bias2 = np.random.rand(nodes_in_hidden_layer2)
+    bias_op = np.random.rand(nodes_in_output_layer)
 
 
 # the sigmoid function
@@ -65,7 +96,7 @@ def sigmoid_der(x):
 
 
 # forward propagation
-def forwardProp(x, y):
+def forward_prop(x, y):
     # predicting for (x,y)
     # taking the inputs
     single_point = np.array([x, y])
@@ -90,7 +121,7 @@ def forwardProp(x, y):
 
 # backpropagation
 if train:
-    for epoch in range(200000):
+    for epoch in range(num_epochs):
         # multiply the input for the ANN matrix with the weights between
         # the input and hidden layer1 matrices to get the input for the
         # hidden layer1
@@ -118,8 +149,8 @@ if train:
         # (which is just the sigmoid of the input to the output layer)
         output_op = sigmoid(input_op)
 
-        if epoch % 1000 == 0:
-            # calculate the mean squeared error and display it to the user
+        if epoch % progress_rate == 0:
+            # calculate the mean squared error and display it to the user
             # along with which epoch the program is on
             error_out = ((1 / 2) * (np.power((output_op - target_output), 2)))
             print("epoch =")
@@ -190,21 +221,34 @@ if train:
         for k in deriv1:
             bias1 -= lr * k
 
-# display the final value of the weights
-print("weight_hidden1")
-print(weight_hidden1)
-print("bias1")
-print(bias1)
-print("weight_hidden2")
-print(weight_hidden2)
-print("bias2")
-print(bias2)
-print("weight_output")
-print(weight_output)
-print("bias_op")
-print(bias_op)
+# # save all the ANN data
+# save_data(save)
+if save:
+    np.savetxt('weight_hidden1.csv', weight_hidden1, delimiter=',')
+    np.savetxt('weight_hidden2.csv', weight_hidden2, delimiter=',')
+    np.savetxt('weight_output.csv', weight_output, delimiter=',')
+    np.savetxt('bias1.csv', bias1, delimiter=',')
+    np.savetxt('bias2.csv', bias2, delimiter=',')
+    np.savetxt('bias_op.csv', bias_op, delimiter=',')
+    print("the ANN has been saved")
 
-forwardProp(0, 0)
-forwardProp(1, 0)
-forwardProp(0, 1)
-forwardProp(1, 1)
+if display:
+    # display the final value of the weights
+    print("weight_hidden1")
+    print(weight_hidden1)
+    print("bias1")
+    print(bias1)
+    print("weight_hidden2")
+    print(weight_hidden2)
+    print("bias2")
+    print(bias2)
+    print("weight_output")
+    print(weight_output)
+    print("bias_op")
+    print(bias_op)
+
+if test:
+    forward_prop(0, 0)
+    forward_prop(1, 0)
+    forward_prop(0, 1)
+    forward_prop(1, 1)

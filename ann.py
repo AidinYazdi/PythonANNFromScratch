@@ -3,6 +3,10 @@ import numpy as np
 
 # SETTINGS START:
 
+# Warning: batch_number, batch_size, test_batch_number, and test_batch_size must all be equal to 1.
+# Otherwise, the program will break (these used to be configurable in the old way of loading in the datasets. In this
+# version, that functionality has not yet been added in).
+
 # how many nodes in each layer
 nodes_in_input_layer = 784
 nodes_in_hidden_layer1 = 20
@@ -10,7 +14,7 @@ nodes_in_hidden_layer2 = 20
 nodes_in_output_layer = 10
 
 # whether or not the ANN should read in data
-read_in_data = True
+read_in_data = False
 
 # whether or not the ANN should train
 train = True
@@ -25,45 +29,114 @@ display = False
 test = True
 
 # how many epochs the program should do
-num_epochs = 1
+num_epochs = 5
 
 # how often the program should tell the user its progress
 # (measured in epochs)
 progress_rate = 2000
 
 # the learning rate
-lr = 20
+lr = 0.01
 
+# settings to do with biases
 # how much the ANN will limit the range of the biases
-bias_limiter = 1
+bias_limiter = 4
+bias_scalar = 0.001
 
 # settings to do with the batches
 batch_number = 1
-batch_size = 1
+batch_size = 5
+# batches_to_train can go up to 60000
 batches_to_train = 60000 / batch_size
 # batches_to_train = 5
+# to train the whole dataset, make this equal to 60000
+elements_in_training_dataset = 60000
 
 # settings to do with testing
 test_batch_number = 1
-test_batch_size = 1
+# for now, test_batch_size has to be equal to batch_size. I might add functionality to change this in the future to
+# make testing more efficient
+test_batch_size = batch_size
+# batches_to_test can go up to 10000
 batches_to_test = 10000 / test_batch_size
 # batches_to_test = 10
+# to test the whole dataset, make this equal to e0000
+elements_in_testing_dataset = 10000
+
+# some checks to make sure that the settings are valid:
+if (batches_to_train * batch_size) > elements_in_training_dataset:
+    raise Exception("(batches_to_train * batch_size) must be less than elements_in_training_dataset")
+if (batches_to_test * test_batch_size) > elements_in_testing_dataset:
+    raise Exception("(batches_to_test * test_batch_size) must be less than elements_in_testing_dataset")
+if (batches_to_train % batch_size) != 0:
+    raise Exception("(batches_to_train % batch_size) must equal 0")
+if (batches_to_test % test_batch_size) != 0:
+    raise Exception("(batches_to_test % test_batch_size) must equal 0")
 
 # SETTINGS END
+
+
+# Notes on the new vs. old way of loading in training and testing data:
+# The old way of loading in training and testing data to the ANN was to repeatedly access to file with each new data
+# point. This involved reading an entire data point from a file 70,000 different times for each run of the entire
+# training and testing datasets (and much more than one run is required to fully train the ANN). The advantage of that
+# method is that it doesn't use a lot of RAM - RAM is only required to hold the weights and biases of the ANN itself and
+# one data point (the single set of inputs and the single output) at a time. The drawback is that such a large amount of
+# separate reads from a file is incredibly, incredibly slow (and also probably not so healthy for the drive). The new
+# way of loading in this data involves loading the training and testing data to np arrays (which are held in RAM) at the
+# beginning of the program and just accessing individual data points from there for the ANN to process one by one.
+# Although this does involve holding an additional 69,999 data points in RAM at the same time, I think it's worth the
+# incredibly speed increase and maintaining the health of the drive.
+
+# loading in the entire training dataset (inputs and outputs)
+if train:
+    entire_training_dataset = np.loadtxt("mnist_train.csv", delimiter=',', ndmin=2, max_rows=elements_in_training_dataset)
+    print("training dataset initialized")
+
+
+# loading in the entire testing dataset (inputs and outputs)
+if test:
+    entire_testing_dataset = np.loadtxt("mnist_test.csv", delimiter=',', ndmin=2, max_rows=elements_in_testing_dataset)
+    print("testing dataset initialized")
 
 
 # the function for getting the input and desired output features from the .csv file
 # file should be either "mnist_train.csv" or "mnist_test.csv"
 def get_inputs_and_outputs(file_name, temp_batch_number, temp_batch_size):
-    input_arr = np.loadtxt(file_name, delimiter=',', ndmin=2, skiprows=((temp_batch_number - 1) * temp_batch_size), max_rows=temp_batch_size)
+    # make sure that temp_batch_size is equal to 1; functionality for larger batches has not been added in yet
+    # if temp_batch_size != 1:
+    #     raise Exception("temp_batch_size must be equal to 1. Functionality for larger batches has not been added in yet")
+
+    # access the correct dataset and put the relevant part in input_arr
+    # the reason it's a double array is to retain functionality with old code
+    current_starting_index = (temp_batch_number - 1) * temp_batch_size
+    if file_name == "mnist_train.csv":
+        input_arr = np.array(entire_training_dataset[current_starting_index:(current_starting_index + temp_batch_size)])
+    elif file_name == "mnist_test.csv":
+        input_arr = np.array(entire_testing_dataset[current_starting_index:(current_starting_index + temp_batch_size)])
+    else:
+        raise Exception("You are trying to access a dataset that does not exist")
+
+    # TESTING STUFF:
+    # print(input_arr)
+
     # take the first element of each sub-array for the inputs (which is the label - the number
     # the ann is trying to approximate) and copy it into the target_outputs
     target_output_arr = np.zeros((batch_size, 10))
     for t in range(len(input_arr)):
         temp = input_arr[t][0]
         target_output_arr[t][int(temp)] = 1
-    # delete the first element of each numpy sub-array (which is the label)
-    input_arr = np.delete(input_arr, 0, axis=1)
+
+    # delete the first element of input_arr (which is the label)
+    if temp_batch_size == 1:
+        input_arr = np.delete(input_arr, 0)
+    else:
+        input_arr = np.delete(input_arr, 0, axis=1)
+
+    # TESTING STUFF:
+    # print(input_arr)
+    # print(target_output_arr)
+
     # reshape the inputs and outputs to make them compatible with the ann
     input_arr = input_arr.reshape(batch_size, 784)
     target_output_arr = target_output_arr.reshape(batch_size, 10)
@@ -72,7 +145,14 @@ def get_inputs_and_outputs(file_name, temp_batch_number, temp_batch_size):
 
 
 # actually setting up the inputs features and desired outputs for the first time
-input_features, target_output, batch_number = get_inputs_and_outputs("mnist_train.csv", batch_number, batch_size)
+file_for_initialization = ""
+if train:
+    file_for_initialization = "mnist_train.csv"
+elif test:
+    file_for_initialization = "mnist_test.csv"
+else:
+    raise Exception("either train or test (at the beginning of the program) must be set to True")
+input_features, target_output, batch_number = get_inputs_and_outputs(file_for_initialization, batch_number, batch_size)
 # setting up the weights and biases
 # reading in the weights and biases
 if read_in_data:
@@ -170,6 +250,13 @@ if train:
             if current_batch != 0:
                 # actually setting up the inputs features and desired outputs each time
                 input_features, target_output, batch_number = get_inputs_and_outputs("mnist_train.csv", batch_number, batch_size)
+
+            # # for testing purposes:
+            # print(f'input_features = {input_features}')
+            # print(f'input_features.shape = {input_features.shape}')
+            # print(f'target_output = {target_output}')
+            # print(f'target_output.shape = {target_output.shape}')
+
             # multiply the input for the ANN matrix with the weights between
             # the input and hidden layer1 matrices to get the input for the
             # hidden layer1
@@ -199,6 +286,7 @@ if train:
 
             # derivatives for the output layer
             derror_douto = output_op - target_output
+            # derror_douto = -(output_op - target_output)
             douto_dino = sigmoid_der(input_op)
             # the derivative that will be used to calculate gradient descent
             # for the bias and for the output layer
@@ -262,10 +350,17 @@ if train:
             for k in deriv1:
                 bias1 -= lr * k
 
+            bias_op *= bias_scalar
+            bias2 *= bias_scalar
+            bias1 *= bias_scalar
+
             # limit the range of the bias values
             limit_range(bias_op, bias_limiter * nodes_in_input_layer)
             limit_range(bias2, bias_limiter * nodes_in_hidden_layer1)
             limit_range(bias1, bias_limiter * nodes_in_hidden_layer2)
+            # limit_range(bias_op, 0)
+            # limit_range(bias2, 0)
+            # limit_range(bias1, 0)
 
             # display training data
             if current_batch % progress_rate == 0:
@@ -308,6 +403,9 @@ if test:
     right = 0
     wrong = 0
     while test_batch_number < (batches_to_test + 1):
+        #TESTING STUFF:
+        # print(f'test_batch_number = {test_batch_number}')
+        # print(f'test_batch_size = {test_batch_size}')
         test_inputs, test_desired_outputs, test_batch_number = get_inputs_and_outputs("mnist_test.csv", test_batch_number, test_batch_size)
         test_actual_outputs = forward_prop(test_inputs)
         for i in range(len(test_actual_outputs)):

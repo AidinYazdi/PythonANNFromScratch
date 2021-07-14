@@ -9,18 +9,24 @@ import numpy as np
 
 # how many nodes in each layer
 nodes_in_input_layer = 784
-nodes_in_hidden_layer1 = 20
-nodes_in_hidden_layer2 = 20
+nodes_in_hidden_layer1 = 80
+nodes_in_hidden_layer2 = 80
 nodes_in_output_layer = 10
 
+# the dataset files
+training_dataset = "mnist_train.csv"
+# training_dataset = "FILLER"
+testing_dataset = "mnist_test.csv"
+# testing_dataset = "mnist_train.csv"
+
 # whether or not the ANN should read in data
-read_in_data = False
+read_in_data = True
+
+# whether or not the ANN should save data
+save = False
 
 # whether or not the ANN should train
 train = True
-
-# whether or not the ANN should save data
-save = True
 
 # whether or not the ANN should display the weights and biases
 display = False
@@ -28,15 +34,31 @@ display = False
 # whether or not the ANN should test itself
 test = True
 
+# whether or not the learning rate should cycle
+cycle_learning_rate = True
+
+# if the biases should be disabled/scaled/limited
+disable_biases = False
+scale_biases = False
+limit_biases = False
+
 # how many epochs the program should do
-num_epochs = 5
+num_epochs = 1
 
 # how often the program should tell the user its progress
 # (measured in epochs)
 progress_rate = 2000
 
 # the learning rate
-lr = 0.01
+# the starting learning rate
+lr = 2
+# the maximum and minimum learning rate
+lr_max = 3
+lr_min = 0.01
+# an iterator to keep track of where we are on the learning rate iteration function (the update_lr function)
+lr_iterator = 0
+# how much lr_iterator should be iterated with each iteration
+lr_iteration_rate = 0.1
 
 # settings to do with biases
 # how much the ANN will limit the range of the biases
@@ -45,7 +67,7 @@ bias_scalar = 0.001
 
 # settings to do with the batches
 batch_number = 1
-batch_size = 5
+batch_size = 3
 # batches_to_train can go up to 60000
 batches_to_train = 60000 / batch_size
 # batches_to_train = 5
@@ -62,6 +84,24 @@ batches_to_test = 10000 / test_batch_size
 # batches_to_test = 10
 # to test the whole dataset, make this equal to e0000
 elements_in_testing_dataset = 10000
+
+# whether or not the program should auto-fit the dataset to the batch size
+auto_fit_to_batch_size = True
+# max_to_train can go up to 60000
+max_to_train = 60000
+# max_to_test can go up to 10000
+max_to_test = 10000
+if auto_fit_to_batch_size:
+    # training settings
+    bsc = batch_size ** 3
+    temp = max_to_train - (max_to_train % bsc)
+    batches_to_train = temp / batch_size
+    elements_in_training_dataset = temp
+    # testing settings
+    tbsc = test_batch_size ** 3
+    temp = max_to_test - (max_to_test % tbsc)
+    batches_to_test = temp / test_batch_size
+    elements_in_testing_dataset = temp
 
 # some checks to make sure that the settings are valid:
 if (batches_to_train * batch_size) > elements_in_training_dataset:
@@ -90,13 +130,13 @@ if (batches_to_test % test_batch_size) != 0:
 
 # loading in the entire training dataset (inputs and outputs)
 if train:
-    entire_training_dataset = np.loadtxt("mnist_train.csv", delimiter=',', ndmin=2, max_rows=elements_in_training_dataset)
+    entire_training_dataset = np.loadtxt(training_dataset, delimiter=',', ndmin=2,
+                                         max_rows=elements_in_training_dataset)
     print("training dataset initialized")
-
 
 # loading in the entire testing dataset (inputs and outputs)
 if test:
-    entire_testing_dataset = np.loadtxt("mnist_test.csv", delimiter=',', ndmin=2, max_rows=elements_in_testing_dataset)
+    entire_testing_dataset = np.loadtxt(testing_dataset, delimiter=',', ndmin=2, max_rows=elements_in_testing_dataset)
     print("testing dataset initialized")
 
 
@@ -110,9 +150,9 @@ def get_inputs_and_outputs(file_name, temp_batch_number, temp_batch_size):
     # access the correct dataset and put the relevant part in input_arr
     # the reason it's a double array is to retain functionality with old code
     current_starting_index = (temp_batch_number - 1) * temp_batch_size
-    if file_name == "mnist_train.csv":
+    if file_name == training_dataset:
         input_arr = np.array(entire_training_dataset[current_starting_index:(current_starting_index + temp_batch_size)])
-    elif file_name == "mnist_test.csv":
+    elif file_name == testing_dataset:
         input_arr = np.array(entire_testing_dataset[current_starting_index:(current_starting_index + temp_batch_size)])
     else:
         raise Exception("You are trying to access a dataset that does not exist")
@@ -144,12 +184,22 @@ def get_inputs_and_outputs(file_name, temp_batch_number, temp_batch_size):
     return (input_arr / 255), target_output_arr, (temp_batch_number + 1)
 
 
+# a function to limit the range of a 1D array
+def limit_range(arr, limit):
+    for w in range(len(arr)):
+        if arr[w] > limit:
+            arr[w] = limit
+        elif arr[w] < -1 * limit:
+            arr[w] = -1 * limit
+    return arr
+
+
 # actually setting up the inputs features and desired outputs for the first time
 file_for_initialization = ""
 if train:
-    file_for_initialization = "mnist_train.csv"
+    file_for_initialization = training_dataset
 elif test:
-    file_for_initialization = "mnist_test.csv"
+    file_for_initialization = testing_dataset
 else:
     raise Exception("either train or test (at the beginning of the program) must be set to True")
 input_features, target_output, batch_number = get_inputs_and_outputs(file_for_initialization, batch_number, batch_size)
@@ -185,6 +235,10 @@ else:
     bias1 = np.random.rand(nodes_in_hidden_layer1)
     bias2 = np.random.rand(nodes_in_hidden_layer2)
     bias_op = np.random.rand(nodes_in_output_layer)
+    if disable_biases:
+        limit_range(bias_op, 0)
+        limit_range(bias2, 0)
+        limit_range(bias1, 0)
 
 
 # the sigmoid function
@@ -229,14 +283,11 @@ def compare(arr1, arr2):
         return False
 
 
-# a function to limit the range of a 1D array
-def limit_range(arr, limit):
-    for w in range(len(arr)):
-        if arr[w] > limit:
-            arr[w] = limit
-        elif arr[w] < -1 * limit:
-            arr[w] = -1 * limit
-    return arr
+# the function to iterate the learning rate (lr)
+def update_lr(temp_iterator):
+    new_lr = 0.5 * ((np.sin(temp_iterator) * (lr_max - lr_min)) + (lr_max + lr_min))
+    temp_iterator += lr_iteration_rate
+    return new_lr, temp_iterator
 
 
 # # settings to do with the batches
@@ -249,7 +300,8 @@ if train:
         for current_batch in range(int(batches_to_train)):
             if current_batch != 0:
                 # actually setting up the inputs features and desired outputs each time
-                input_features, target_output, batch_number = get_inputs_and_outputs("mnist_train.csv", batch_number, batch_size)
+                input_features, target_output, batch_number = get_inputs_and_outputs(training_dataset, batch_number,
+                                                                                     batch_size)
 
             # # for testing purposes:
             # print(f'input_features = {input_features}')
@@ -343,24 +395,35 @@ if train:
             weight_hidden1 -= lr * derror_dwh1
 
             # update the biases
-            for i in deriv_op:
-                bias_op -= lr * i
-            for j in deriv2:
-                bias2 -= lr * j
-            for k in deriv1:
-                bias1 -= lr * k
+            if not disable_biases:
+                for i in deriv_op:
+                    bias_op -= lr * i
+                for j in deriv2:
+                    bias2 -= lr * j
+                for k in deriv1:
+                    bias1 -= lr * k
 
-            bias_op *= bias_scalar
-            bias2 *= bias_scalar
-            bias1 *= bias_scalar
+                if scale_biases:
+                    bias_op *= bias_scalar
+                    bias2 *= bias_scalar
+                    bias1 *= bias_scalar
+
+                if limit_biases:
+                    limit_range(bias_op, bias_limiter)
+                    limit_range(bias2, bias_limiter)
+                    limit_range(bias1, bias_limiter)
 
             # limit the range of the bias values
-            limit_range(bias_op, bias_limiter * nodes_in_input_layer)
-            limit_range(bias2, bias_limiter * nodes_in_hidden_layer1)
-            limit_range(bias1, bias_limiter * nodes_in_hidden_layer2)
+            # limit_range(bias_op, bias_limiter * nodes_in_input_layer)
+            # limit_range(bias2, bias_limiter * nodes_in_hidden_layer1)
+            # limit_range(bias1, bias_limiter * nodes_in_hidden_layer2)
             # limit_range(bias_op, 0)
             # limit_range(bias2, 0)
             # limit_range(bias1, 0)
+
+            # update the learning rate
+            if cycle_learning_rate:
+                lr, lr_iterator = update_lr(lr_iterator)
 
             # display training data
             if current_batch % progress_rate == 0:
@@ -403,10 +466,12 @@ if test:
     right = 0
     wrong = 0
     while test_batch_number < (batches_to_test + 1):
-        #TESTING STUFF:
+        # TESTING STUFF:
         # print(f'test_batch_number = {test_batch_number}')
         # print(f'test_batch_size = {test_batch_size}')
-        test_inputs, test_desired_outputs, test_batch_number = get_inputs_and_outputs("mnist_test.csv", test_batch_number, test_batch_size)
+        test_inputs, test_desired_outputs, test_batch_number = get_inputs_and_outputs(testing_dataset,
+                                                                                      test_batch_number,
+                                                                                      test_batch_size)
         test_actual_outputs = forward_prop(test_inputs)
         for i in range(len(test_actual_outputs)):
             temp_test_actual_outputs = test_actual_outputs[i]
